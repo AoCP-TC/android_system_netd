@@ -497,6 +497,7 @@ MDnsSdListener::Monitor::Monitor() {
     pthread_mutex_init(&mHeadMutex, NULL);
     socketpair(AF_LOCAL, SOCK_STREAM, 0, mCtrlSocketPair);
     pthread_create(&mThread, NULL, MDnsSdListener::Monitor::threadStart, this);
+    pthread_detach(mThread);
 }
 
 void *MDnsSdListener::Monitor::threadStart(void *obj) {
@@ -606,8 +607,8 @@ int MDnsSdListener::Monitor::rescan() {
         mPollFds = (struct pollfd *)calloc(sizeof(struct pollfd), mPollSize);
         mPollRefs = (DNSServiceRef **)calloc(sizeof(DNSServiceRef *), mPollSize);
     } else {
-        memset(mPollFds, sizeof(struct pollfd) * mPollSize, 0);
-        memset(mPollRefs, sizeof(DNSServiceRef *) * mPollSize, 0);
+        memset(mPollFds, 0, sizeof(struct pollfd) * mPollSize);
+        memset(mPollRefs, 0, sizeof(DNSServiceRef *) * mPollSize);
     }
     mPollFds[0].fd = mCtrlSocketPair[0];
     mPollFds[0].events = POLLIN;

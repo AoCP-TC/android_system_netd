@@ -34,8 +34,9 @@ class TetherController {
     InterfaceCollection  *mInterfaces;
     NetAddressCollection *mDnsForwarders;
     pid_t                 mDaemonPid;
-    pid_t                 mDhcpcdPid;
     int                   mDaemonFd;
+    pid_t                 mRtrAdvPid; // IPv6 support
+    InterfaceCollection  *mUpstreamInterfaces;
 
 public:
     TetherController();
@@ -49,15 +50,22 @@ public:
     int stopTethering();
     bool isTetheringStarted();
 
-    int startReverseTethering(const char* iface);
-    int stopReverseTethering();
-
     int setDnsForwarders(char **servers, int numServers);
     NetAddressCollection *getDnsForwarders();
 
     int tetherInterface(const char *interface);
     int untetherInterface(const char *interface);
     InterfaceCollection *getTetheredInterfaceList();
+    int startV6RtrAdv(int num_ifaces, char **ifaces);
+    int stopV6RtrAdv();
+    bool isV6RtrAdvStarted();
+    int addV6RtrAdvIface(const char *iface);
+    int removeV6RtrAdvIface(const char *iface);
+    int addUpstreamInterface(char *iface);
+    int removeUpstreamInterface(char *iface);
+
+private:
+    int applyDnsInterfaces();
 };
 
 #endif

@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
+#include <fcntl.h>
 #include <string.h>
+#include <sys/wait.h>
 
 #define LOG_TAG "Netd"
 
 #include <cutils/log.h>
+#include <logwrap/logwrap.h>
 
 #include "NetdConstants.h"
 
@@ -28,9 +31,10 @@ const char * const IP6TABLES_PATH = "/system/bin/ip6tables";
 const char * const TC_PATH = "/system/bin/tc";
 const char * const IP_PATH = "/system/bin/ip";
 const char * const ADD = "add";
+const char * const APPEND = "append";
 const char * const DEL = "del";
 
-static void logExecError(const char* argv[], int res) {
+static void logExecError(const char* argv[], int res, int status) {
     const char** argp = argv;
     std::string args = "";
     while (*argp) {
@@ -38,7 +42,25 @@ static void logExecError(const char* argv[], int res) {
         args += ' ';
         argp++;
     }
-    ALOGE("exec() res=%d for %s", res, args.c_str());
+    ALOGE("exec() res=%d, status=%d for %s", res, status, args.c_str());
+}
+
+static int execIptablesCommand(int argc, const char *argv[], bool silent) {
+    int res;
+    int status;
+
+    res = android_fork_execvp(argc, (char **)argv, &status, false,
+        !silent);
+    if (res || !WIFEXITED(status) || WEXITSTATUS(status)) {
+        if (!silent) {
+            logExecError(argv, res, status);
+        }
+        if (res)
+            return res;
+        if (!WIFEXITED(status))
+            return ECHILD;
+    }
+    return WEXITSTATUS(status);
 }
 
 static int execIptables(IptablesTarget target, bool silent, va_list args) {
@@ -61,23 +83,11 @@ static int execIptables(IptablesTarget target, bool silent, va_list args) {
     int res = 0;
     if (target == V4 || target == V4V6) {
         argv[0] = IPTABLES_PATH;
-        int localRes = fork_and_execve(argv[0], argv);
-        if (localRes) {
-            if (!silent) {
-                logExecError(argv, localRes);
-            }
-            res |= localRes;
-        }
+        res |= execIptablesCommand(argsList.size(), argv, silent);
     }
     if (target == V6 || target == V4V6) {
         argv[0] = IP6TABLES_PATH;
-        int localRes = fork_and_execve(argv[0], argv);
-        if (localRes) {
-            if (!silent) {
-                logExecError(argv, localRes);
-            }
-            res |= localRes;
-        }
+        res |= execIptablesCommand(argsList.size(), argv, silent);
     }
     return res;
 }
@@ -96,4 +106,41 @@ int execIptablesSilently(IptablesTarget target, ...) {
     int res = execIptables(target, true, args);
     va_end(args);
     return res;
+}
+
+int writeFile(const char *path, const char *value, int size) {
+    int fd = open(path, O_WRONLY);
+    if (fd < 0) {
+        ALOGE("Failed to open %s: %s", path, strerror(errno));
+        return -1;
+    }
+
+    if (write(fd, value, size) != size) {
+        ALOGE("Failed to write %s: %s", path, strerror(errno));
+        close(fd);
+        return -1;
+    }
+    close(fd);
+    return 0;
+}
+
+int readFile(const char *path, char *buf, int *sizep)
+{
+    int fd = open(path, O_RDONLY);
+    int size;
+
+    if (fd < 0) {
+        ALOGE("Failed to open %s: %s", path, strerror(errno));
+        return -1;
+    }
+
+    size = read(fd, buf, *sizep);
+    if (size < 0) {
+        ALOGE("Failed to write %s: %s", path, strerror(errno));
+        close(fd);
+        return -1;
+    }
+    *sizep = size;
+    close(fd);
+    return 0;
 }

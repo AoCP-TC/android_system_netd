@@ -4,6 +4,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:=                                      \
                   BandwidthController.cpp              \
+                  ClatdController.cpp                  \
                   CommandListener.cpp                  \
                   DnsProxyListener.cpp                 \
                   FirewallController.cpp               \
@@ -19,11 +20,10 @@ LOCAL_SRC_FILES:=                                      \
                   ResolverController.cpp               \
                   SecondaryTableController.cpp         \
                   TetherController.cpp                 \
-                  ThrottleController.cpp               \
                   oem_iptables_hook.cpp                \
-                  logwrapper.c                         \
+                  UidMarkMap.cpp                       \
                   main.cpp                             \
-
+                  RouteController.cpp
 
 LOCAL_MODULE:= netd
 
@@ -37,8 +37,10 @@ LOCAL_C_INCLUDES := $(KERNEL_HEADERS) \
 
 LOCAL_CFLAGS := -Werror=format
 
-LOCAL_SHARED_LIBRARIES := libstlport libsysutils libcutils libnetutils \
-                          libcrypto libhardware_legacy libmdnssd libdl
+LOCAL_SHARED_LIBRARIES := libstlport libsysutils liblog libcutils libnetutils \
+                          libcrypto libhardware_legacy libmdnssd libdl \
+                          liblogwrap
+
 ifdef USES_TI_MAC80211
   LOCAL_SRC_FILES += SoftapControllerTI.cpp
 else
@@ -52,9 +54,11 @@ ifneq ($(BOARD_HOSTAPD_DRIVER),)
   endif
 endif
 
-ifeq ($(BOARD_HAVE_BLUETOOTH),true)
-  LOCAL_SHARED_LIBRARIES := $(LOCAL_SHARED_LIBRARIES) libbluedroid
-  LOCAL_CFLAGS := $(LOCAL_CFLAGS) -DHAVE_BLUETOOTH
+ifeq ($(BOARD_HAS_QCOM_WLAN_SDK), true)
+  LOCAL_SRC_FILES += QsoftapCmd.cpp
+  LOCAL_CFLAGS += -DQSAP_WLAN
+  LOCAL_SHARED_LIBRARIES += libqsap_sdk
+  LOCAL_C_INCLUDES += $(LOCAL_PATH)/../qcom/softap/sdk/
 endif
 
 include $(BUILD_EXECUTABLE)
